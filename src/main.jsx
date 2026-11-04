@@ -106,7 +106,7 @@ createRoot(document.getElementById('root')).render(<App/>);
 const handleDeleteMeeting = async (id) => {
   if (!window.confirm("Es-tu sûr de vouloir supprimer cette rencontre ?")) return;
   
-  const { error } = await supabase.from('meetings').delete().eq('id', id);
+  const { error } = await supabase.from('meetings').delete().eq('user_id', id);
   
   if (error) {
     alert("Erreur : " + error.message);
