@@ -46,7 +46,32 @@ function App(){
  async function signOut(){await supabase?.auth.signOut();setSession(null);setProfile(null);localStorage.removeItem(PROFILE_KEY);setCommunity(null);setData(empty);}
  function addPerson(e){e.preventDefault();if(!personName.trim())return;const existing=data.people.find(p=>norm(p.full_name)===norm(personName)&&p.group_name===personGroup);if(existing){setNotice('Cette personne existe déjà dans cette catégorie.');return;}const row={id:uuid(),community_id:profile.community_id,full_name:personName.trim(),phone:phone.trim(),group_name:personGroup,created_by:session.user.id};setData(old=>({...old,people:[...old.people,row]}));enqueue('people',row);setPersonName('');setPhone('');setShowPerson(false);setNotice(online?'Personne ajoutée. Synchronisation en cours.':'Personne enregistrée hors ligne ; elle sera synchronisée à la reconnexion.');}
  function addMeeting(e){e.preventDefault();if(!meetingTitle.trim()||!meetingDate)return;const row={id:uuid(),community_id:profile.community_id,title:meetingTitle.trim(),meeting_date:meetingDate,preacher:preacher.trim(),notes:notes.trim(),created_by:session.user.id};setData(old=>({...old,meetings:[row,...old.meetings] }));enqueue('meetings',row);setSelectedMeeting(row.id);setShowMeeting(false);setMeetingTitle('Culte');setPreacher('');setNotes('');setNotice('Rencontre enregistrée.');}
- function addAttendance(e){e.preventDefault();const p=data.people.find(x=>x.id===selectedPerson),m=data.meetings.find(x=>x.id===selectedMeeting);if(!p||!m){setNotice('Choisis une personne et une rencontre.');return;}if(data.attendance.some(a=>a.meeting_id===m.id&&a.person_id===p.id)){setNotice('Cette personne est déjà enregistrée pour cette rencontre.');return;}const past=data.attendance.filter(a=>a.person_id===p.id&&data.meetings.some(x=>x.id===a.meeting_id&&x.meeting_date<m.meeting_date)).sort((a,b)=>{const ma=data.meetings.find(x=>x.id===a.meeting_id),mb=data.meetings.find(x=>x.id===b.meeting_id);return (mb?.meeting_date||'').localeCompare(ma?.meeting_date||'')})[0];const lastDate=past?data.meetings.find(x=>x.id===past.meeting_id)?.meeting_date:null;const gap=lastDate?Math.floor((new Date(m.meeting_date+'T12:00:00')-new Date(lastDate+'T12:00:00'))/86400000):null;const category=manualCategory==='Auto'?(!past?'Nouvelle':gap>=28?'Revenue':'Ancienne'):manualCategory;const row={id:uuid(),community_id:profile.community_id,meeting_id:m.id,person_id:p.id,category,created_by:session.user.id};setData(old=>({...old,attendance:[...old.attendance,row]}));enqueue('attendance',row,'meeting_id,person_id');setNotice(`Présence enregistrée : ${category}.`);setSelectedPerson('');setManualCategory('Auto');}
+ function addAttendance(e){e.preventDefault();const p=data.people.find(x=>x.id===selectedPerson),m=data.meetings.find(x=>x.id===selectedMeeting);if(!p||!m){setNotice('Choisis une personne et une rencontre.');return;}if(data.attendance.some(a=>a.meeting_id===m.id&&a.person_id===p.id)){setNotice('Cette personne est déjà enregistrée pour cette rencontre.');return;}const past=data.attendance.filter(a=>a.person_id===p.id&&data.meetings.some(x=>x.id===a.meeting_id&&x.meeting_date<m.meeting_date)).sort((a,b)=>{const ma=data.meetings.find(x=>x.id===a.meeting_id),mb=data.meetings.find(x=>x.id===b.meeting_id);const handleDeletePerson = async (id) => {
+  if (!window.confirm("Es-tu sûr de vouloir supprimer cette personne ?")) return;
+  const { error } = await supabase.from('people').delete().eq('id', id);
+  if (error) {
+    alert("Erreur : " + error.message);
+  } else {
+    setData(prev => ({ ...prev, people: prev.people.filter(p => p.id !== id) }));
+    alert("Personne supprimée !");
+  }
+};
+
+const addDepartment = async (e) => {
+  e.preventDefault();
+  const newDeptName = prompt("Nom du nouveau département (ex: Jeunesse) :");
+  if (!newDeptName) return;
+  const { error } = await supabase.from('departments').insert([{ 
+    name: newDeptName.toUpperCase(),
+    community_id: profile.community_id 
+  }]);
+  if (error) {
+    alert("Erreur : " + error.message);
+  } else {
+    alert("Département ajouté avec succès !");
+    setGroupsList(prev => [...prev, newDeptName.toUpperCase()]);
+  }
+};return (mb?.meeting_date||'').localeCompare(ma?.meeting_date||'')})[0];const lastDate=past?data.meetings.find(x=>x.id===past.meeting_id)?.meeting_date:null;const gap=lastDate?Math.floor((new Date(m.meeting_date+'T12:00:00')-new Date(lastDate+'T12:00:00'))/86400000):null;const category=manualCategory==='Auto'?(!past?'Nouvelle':gap>=28?'Revenue':'Ancienne'):manualCategory;const row={id:uuid(),community_id:profile.community_id,meeting_id:m.id,person_id:p.id,category,created_by:session.user.id};setData(old=>({...old,attendance:[...old.attendance,row]}));enqueue('attendance',row,'meeting_id,person_id');setNotice(`Présence enregistrée : ${category}.`);setSelectedPerson('');setManualCategory('Auto');}
  async function rotateCode(){try{const {data:code,error}=await supabase.rpc('rotate_join_code');if(error)throw error;setCommunity(old=>({...old,join_code:code}));setNotice(`Nouveau code d'inscription : ${code}. L'ancien code ne fonctionne plus.`)}catch(e){setNotice(e.message)}}
  function exportCsv(){const rows=[['Nom','Téléphone','Catégorie de groupe','Rencontre','Date','Statut de présence']];for(const a of data.attendance){const p=data.people.find(x=>x.id===a.person_id),m=data.meetings.find(x=>x.id===a.meeting_id);rows.push([p?.full_name||'',p?.phone||'',p?.group_name||'',m?.title||'',m?.meeting_date||'',a.category]);}const csv='\uFEFF'+rows.map(r=>r.map(v=>`"${String(v??'').replaceAll('"','""')}"`).join(';')).join('\r\n');const u=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=u;a.download='communaute-plus-presences.csv';a.click();URL.revokeObjectURL(u);}
  const people=useMemo(()=>data.people.filter(p=>(group==='Toutes'||p.group_name===group)&&norm(p.full_name+' '+p.phone).includes(norm(query))).sort((a,b)=>a.full_name.localeCompare(b.full_name,'fr')),[data.people,group,query]);
@@ -77,9 +102,7 @@ setTab('people');setShowPerson(true)}}><Plus size={17}/> Ajouter une personne</b
   )}
 </td></tr>})}{!people.length&&<tr><td colSpan="4" className="empty-cell">Aucune personne dans cette sélection.</td></tr>}</tbody></table></div></>}
  {tab==='meetings'&&<><section className="section-head"><div><h2>Rencontres</h2><p>Crée les rencontres selon les dates réelles.</p></div><button className="primary" onClick={()=>setShowMeeting(!showMeeting)}><Plus size={17}/> Nouvelle rencontre</button></section>{showMeeting&&<form className="form-panel" onSubmit={addMeeting}><div className="form-grid"><label>Nom de la rencontre<input required value={meetingTitle} onChange={e=>setMeetingTitle(e.target.value)}/></label><label>Date<input type="date" required value={meetingDate} onChange={e=>setMeetingDate(e.target.value)}/></label><label>Prédicateur devant l'assemblée<input value={preacher} onChange={e=>setPreacher(e.target.value)} placeholder="Nom du prédicateur"/></label><label>Notes (facultatif)<input value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Lieu ou remarque"/></label></div><div className="form-actions"><button type="button" className="secondary" onClick={()=>setShowMeeting(false)}>Annuler</button><button className="primary"><Plus size={16}/> Créer la rencontre</button></div></form>}<div className="meeting-list">{data.meetings.slice().sort((a,b)=>b.meeting_date.localeCompare(a.meeting_date)).map(m=><div className="meeting-row" key={m.id}><div className="date-icon"><CalendarDays/></div><div className="meeting-info"><b>{m.title}</b><small>{fmt(m.meeting_date)} · {m.preacher?`Prédicateur : ${m.preacher}`:'Prédicateur non renseigné'} {m.notes?`· ${m.notes}`:''}</small></div><span className="count-pill">{data.attendance.filter(a=>a.meeting_id===m.id).length} présence(s)</span><button className="primary small" onClick={()=>{setSelectedMeeting(m.id);setTab('attendance')}}>Présences</button> {profile?.role === 'admin' && (
-  <button className="secondary small" style={{ color: 'red', marginLeft: '10px' }} onClick={() => const handleDeletePerson = async (id) => {
-const addDepartment = async (e) => {
-  e.preventDefault();
+  <button className="secondary small" style={{ color: 'red', marginLeft: '10px' }} onClick={() =><button className="secondary small" style={{ color: 'red', marginLeft: '10px' }} onClick={() => handleDeletePerson(m.id)}>Supprimer</button>   e.preventDefault();
   // On demande le nom via une petite fenêtre
   const newDeptName = prompt("Nom du nouveau département (ex: Jeunesse) :");
   if (!newDeptName) return;
