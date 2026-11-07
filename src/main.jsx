@@ -7,7 +7,6 @@ import './styles.css';
 const url = import.meta.env.VITE_SUPABASE_URL || '';
 const anon = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const supabase = url.startsWith('https://') && anon && !anon.includes('VOTRE_') ? createClient(url, anon) : null;
-const GROUPS = ['Département 1','Département 2','Département 3','Peuple'];
 const KEY = 'communaute-plus-v02-cache';
 const PROFILE_KEY = 'communaute-plus-v02-profile';
 const QUEUE = 'communaute-plus-v02-queue';
@@ -18,7 +17,7 @@ const norm = s => (s||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
 const empty = { people:[], meetings:[], attendance:[], profiles:[], community:null };
 const readJson = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } };
 const writeJson = (key,val) => localStorage.setItem(key, JSON.stringify(val));
-
+const [groupsList, setGroupsList] = useState([]);
 function App(){
  const [session,setSession]=useState(null), [profile,setProfile]=useState(null), [community,setCommunity]=useState(null);
  const [data,setData]=useState(empty), [queue,setQueue]=useState(()=>readJson(QUEUE,[]));
@@ -82,7 +81,11 @@ setTab('people');setShowPerson(true)}}><Plus size={17}/> Ajouter une personne</b
   if (!window.confirm("Es-tu sûr de vouloir supprimer cette personne ?")) return;
   
   const { error } = await supabase.from('people').delete().eq('id', id);
-  
+  const { data: deps } = await supabase.from('departments').select('*').order('name');
+if (deps) {
+  // On met les noms des départements dans notre liste
+  setGroupsList(deps.map(d => d.name)); 
+}
   if (error) {
     alert("Erreur : " + error.message);
   } else {
