@@ -67,12 +67,42 @@ setTab('people');setShowPerson(true)}}><Plus size={17}/> Ajouter une personne</b
   <button 
     className="secondary small" 
     style={{ color: 'red', marginLeft: '10px' }} 
-    onClick={() => handleDeleteMeeting(m.id)}
+    onClick={() => handleDeleteMeeting(m.id)}const handleDeletePerson = async (id) => {
+  if (!window.confirm("Es-tu sûr de vouloir supprimer cette personne ?")) return;
+  const { error } = await supabase.from('people').delete().eq('id', id);
+  if (error) {
+    alert("Erreur : " + error.message);
+  } else {
+    setData(prev => ({ ...prev, people: prev.people.filter(p => p.id !== id) }));
+    alert("Personne supprimée !");
+  }
+};
+
+const addDepartment = async (e) => {
+  e.preventDefault();
+  const newDeptName = prompt("Nom du nouveau département (ex: Jeunesse) :");
+  if (!newDeptName) return;
+  const { error } = await supabase.from('departments').insert([{ 
+    name: newDeptName.toUpperCase(),
+    community_id: profile.community_id 
+  }]);
+  if (error) {
+    alert("Erreur : " + error.message);
+  } else {
+    alert("Département ajouté avec succès !");
+    setGroupsList(prev => [...prev, newDeptName.toUpperCase()]);
+  }
+};
   >
     Supprimer
   </button>
 )}</div>)}{!data.meetings.length&&<Empty text="Aucune rencontre. Crée la première rencontre pour commencer."/>}</div></>}
- {tab==='people'&&<><section className="section-head"><div><h2>Répertoire des personnes</h2><p>Les personnes sont rattachées à un département ou au peuple.</p></div><button className="primary" onClick={()=>setShowPerson(!showPerson)}><Plus size={17}/> Nouvelle personne</button></section>{showPerson&&<form className="form-panel" onSubmit={addPerson}><div className="form-grid"><label>Nom et prénom<input required value={personName} onChange={e=>setPersonName(e.target.value)} placeholder="Nom complet"/></label><label>Téléphone (facultatif)<input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="07…"/></label><label>Catégorie<select value={personGroup} onChange={e=>setPersonGroup(e.target.value)}>{GROUPS.map(g=><option key={g}>{g}</option>)}</select></label></div><div className="form-actions"><button type="button" className="secondary" onClick={()=>setShowPerson(false)}>Annuler</button><button className="primary"><Plus size={16}/> Enregistrer</button></div></form>}<div className="toolbar"><div className="searchbox"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Rechercher un nom ou téléphone"/></div><select value={group} onChange={e=>setGroup(e.target.value)}><option>Toutes</option>{GROUPS.map(g=><option key={g}>{g}</option>)}</select></div><div className="table-wrap"><table><thead><tr><th>Nom</th><th>Téléphone</th><th>Catégorie</th><th>Dernière présence</th></tr></thead><tbody>{people.map(p=>{const last=data.attendance.filter(a=>a.person_id===p.id).map(a=>({a,m:data.meetings.find(m=>m.id===a.meeting_id)})).filter(x=>x.m).sort((a,b)=>b.m.meeting_date.localeCompare(a.m.meeting_date))[0];return <tr key={p.id}><td><b>{p.full_name}</b></td><td>{p.phone||'—'}</td><td><span className="tag">{p.group_name}</span></td><td>{last?fmt(last.m.meeting_date):'Aucune'}</td> <td>
+ {tab==='people'&&<><section className="section-head"><div><h2>Répertoire des personnes</h2><p>Les personnes sont rattachées à un département ou au peuple.</p></div><button className="primary" onClick={()=>setShowPerson(!showPerson)}><Plus size={17}/> Nouvelle personne</button></section>{showPerson&&<form className="form-panel" onSubmit={addPerson}><div className="form-grid"><label>Nom et prénom<input required value={personName} onChange={e=>setPersonName(e.target.value)} placeholder="Nom complet"/></label><label>Téléphone (facultatif)<input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="07…"/></label><label>Catégorie<select value={personGroup} onChange={e=>setPersonGroup(e.target.value)}>{GROUPS.map(g=><option key={g}>{g}</option>)}</select></label></div><div className="form-actions"><button type="button" className="secondary" onClick={()=>setShowPerson(false)}>Annuler</button><button className="primary"><Plus size={16}/> Enregistrer</button></div></form>}<div className="toolbar"><div className="searchbox"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Rechercher un nom ou téléphone"/></div><select value={group} onChange={e=>setGroup(e.target.value)}><option>Toutes</option>{GROUPS.map(g=><option key={g}>{g}</option>)}</select></div><div className="table-wrap"><table><thead><tr><th>Nom</th><th>Téléphone</th><th>Catégorie</th><th>Actions</th></tr></thead><tbody>{people.map(p=>{const last=data.attendance.filter(a=>a.person_id===p.id).map(a=>({a,m:data.meetings.find(m=>m.id===a.meeting_id)})).filter(x=>x.m).sort((a,b)=>b.m.meeting_date.localeCompare(a.m.meeting_date))[0];return <tr key={p.id}><td><b>{p.full_name}</b></td><td>{p.phone||'—'}</td><td><span className="tag">{p.group_name}</span></td><td>{last?fmt(last.m.meeting_date):'Aucune'}</td>
+  <td>
+  {profile?.role === 'admin' && (
+    <button className="secondary small" style={{ color: 'red' }} onClick={() => handleDeletePerson(p.id)}>Supprimer</button>
+  )}
+</td>
   {profile?.role === 'admin' && (
     <button className="secondary small" style={{ color: 'red' }} onClick={() => handleDeletePerson(p.id)}>Supprimer</button>
   )}
